@@ -31,7 +31,7 @@ class Keywords
 }
 
 [ShaderFieldGroup(Mask.Group0 | Mask.Group1)] //Mark this class is a collection of shader parameters
-class ShaderOptions
+class ShaderParameters
 {
     public const string FloatValueShaderName = "_FloatValue";
     public const string IntValueShaderName = "_IntValue";
@@ -40,7 +40,13 @@ class ShaderOptions
     public float floatValue;
     
     [ShaderField(IntValueShaderName, Mask.Group1)] //Mark as a shader parameter
-    public int intValue;
+    public int intValue {get; set;}
+}
+
+class ShaderOptions
+{
+    public Keywords Keywords;
+    public ShaderParameters Parameters;
 }
 ```
 
