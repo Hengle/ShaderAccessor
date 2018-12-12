@@ -19,13 +19,15 @@ public enum Mask
 [ShaderFieldGroup] //Mark this class is a collection of shader parameters
 class Keywords
 {
+    public const string Group0Keyword = "_Group0";
+    public const string Group1Keyword = "_Group1";
+
     [ShaderFieldKeyword(Group0Keyword, Mask.Group0)] //Mark this member as a keyword
     public bool Group0;
     
-    [ShaderFieldEnumKeyword(null, ModeSwitch.None
-        , Group1Keyword, ModeSwitch.EnableGroup1
-        , Group2Keyword, ModeSwitch.EnableGroup2)] //Mark as keywords enumeration
-    public ModeSwitch ModeSwitch;
+    [ShaderFieldEnumKeyword(Group0Keyword, Mask.Group0
+        , Group1Keyword, Mask.Group1)] //Mark as keywords enumeration
+    public Mask ModeSwitch;
 }
 
 [ShaderFieldGroup(Mask.Group0 | Mask.Group1)] //Mark this class is a collection of shader parameters
