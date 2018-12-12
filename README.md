@@ -37,6 +37,8 @@ ShaderOptions shaderOptions = ShaderOptions.CreateEmpty();
 
 accessor.Copy(shaderOptions, material); //Format : void Copy(object source, Material dest)
 accessor.Copy(material, shaderOptions); //Format : void Copy(Material source, object dest)
+
+accessor.Copy(shaderOptions, material, member => (member.Mask & Mask.Group0) != 0); //Only copy members marked as Group0
 ```
 
 
