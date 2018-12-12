@@ -54,7 +54,9 @@ ShaderOptions shaderOptions = ShaderOptions.CreateEmpty();
 accessor.Copy(shaderOptions, material); //Format : void Copy(object source, Material dest)
 accessor.Copy(material, shaderOptions); //Format : void Copy(Material source, object dest)
 
+accessor.CopyWithoutKeywords(shaderOptions, material);
 accessor.Copy(shaderOptions, material, member => (member.Mask & Mask.Group0) != 0); //Only copy members marked as Group0
+accessor.SetGlobalValues(shaderOptions); // like Shader.SetGlobalXXXX()
 ```
 
 Get the shader parameter collection, you can easily implement the automatic UI.<br>
