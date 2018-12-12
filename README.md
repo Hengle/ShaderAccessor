@@ -1,7 +1,7 @@
 # ShaderAccessor
 Define the structure, assign values to shader parameters using C# reflection,work at unity
 
-For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Performance is definitely not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
+For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments or UI are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Performance is definitely not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
 
 #Examples,more see "ShaderAccessorTest.cs"
 
