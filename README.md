@@ -1,7 +1,7 @@
 # ShaderAccessor
 Define the structure, assign values to shader parameters using C# reflection,work at unity
 
-For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments or UI are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Performance is not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
+For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments or UI are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Because reflection is used, performance is not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
 
 The tool supports all shader parameter type assignment and lerp, supports keyword (enum or boolean) switches, and provides custom types that can be used to resolve frame animation assignment, more see "ScriptableFrameAnimation.cs".
 
