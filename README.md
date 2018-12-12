@@ -16,6 +16,18 @@ public enum Mask
     Group1 = 1 << 1,
 }
 
+[ShaderFieldGroup] //Mark this class is a collection of shader parameters
+class Keywords
+{
+    [ShaderFieldKeyword(Group0Keyword, Mask.Group0)] //Mark this member as a keyword
+    public bool Group0;
+    
+    [ShaderFieldEnumKeyword(null, ModeSwitch.None
+        , Group1Keyword, ModeSwitch.EnableGroup1
+        , Group2Keyword, ModeSwitch.EnableGroup2)] //Mark as keywords enumeration
+    public ModeSwitch ModeSwitch;
+}
+
 [ShaderFieldGroup(Mask.Group0 | Mask.Group1)] //Mark this class is a collection of shader parameters
 class ShaderOptions
 {
