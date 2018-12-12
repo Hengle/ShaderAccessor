@@ -1,9 +1,11 @@
 # ShaderAccessor
 Define the structure, assign values to shader parameters using C# reflection,work at unity
 
-最近写了一个很多变体的着色器,而且在运行时会用到C#动态的改变着色器参数.如果全部使用手工编码,那真的是惨无人道.所以写了工具,使用C#反射进行赋值.性能肯定不如手工编码,但是能避免很多麻烦和错误.
+For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments or UI are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Performance is not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
 
-#部分演示,更多你可以看这儿
+The tool supports all shader parameter type assignment and lerp, supports keyword (enum or boolean) switches, and provides custom types that can be used to resolve frame animation assignment, more see "ScriptableFrameAnimation.cs".
+
+#Examples,more see "ShaderAccessorTest.cs"
 
 First define some types and add attributes
 ```C#
@@ -12,6 +14,20 @@ public enum Mask
 {
     Group0 = 1 << 0,
     Group1 = 1 << 1,
+}
+
+[ShaderFieldGroup] //Mark this class is a collection of shader parameters
+class Keywords
+{
+    public const string Group0Keyword = "_Group0";
+    public const string Group1Keyword = "_Group1";
+
+    [ShaderFieldKeyword(Group0Keyword, Mask.Group0)] //Mark this member as a keyword
+    public bool Group0;
+    
+    [ShaderFieldEnumKeyword(Group0Keyword, Mask.Group0
+        , Group1Keyword, Mask.Group1)] //Mark as keywords enumeration
+    public Mask ModeSwitch;
 }
 
 [ShaderFieldGroup(Mask.Group0 | Mask.Group1)] //Mark this class is a collection of shader parameters
@@ -41,6 +57,5 @@ accessor.Copy(material, shaderOptions); //Format : void Copy(Material source, ob
 accessor.Copy(shaderOptions, material, member => (member.Mask & Mask.Group0) != 0); //Only copy members marked as Group0
 ```
 
-
-
-![demo](https://github.com/JiongXiaGu/ShaderAccessor/blob/master/Assets/ShaderFieldAccessor/ui.gif)
+Get the shader parameter collection, you can easily implement the automatic UI.<br>
+![demo](https://github.com/JiongXiaGu/ShaderAccessor/blob/master/Assets/ShaderFieldAccessor/ui.gif "auto draw")
