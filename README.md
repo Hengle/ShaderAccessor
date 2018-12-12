@@ -1,7 +1,7 @@
 # ShaderAccessor
 Define the structure, assign values to shader parameters using C# reflection,work at unity
 
-最近写了一个很多变体的着色器,而且在运行时会用到C#动态的改变着色器参数.如果全部使用手工编码,那真的是惨无人道.所以写了工具,使用C#反射进行赋值.性能肯定不如手工编码,但是能避免很多麻烦和错误.
+For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Performance is definitely not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
 
 #Examples,more see "ShaderAccessorTest.cs"
 
@@ -41,5 +41,5 @@ accessor.Copy(material, shaderOptions); //Format : void Copy(Material source, ob
 accessor.Copy(shaderOptions, material, member => (member.Mask & Mask.Group0) != 0); //Only copy members marked as Group0
 ```
 
-Get the shader parameter collection, you can easily implement the automatic UI.
+Get the shader parameter collection, you can easily implement the automatic UI.<br>
 ![demo](https://github.com/JiongXiaGu/ShaderAccessor/blob/master/Assets/ShaderFieldAccessor/ui.gif "auto draw")
