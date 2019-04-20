@@ -8,8 +8,7 @@ The tool supports all shader parameter type assignment and lerp, supports keywor
 
 First define some types and add attributes
 ```C#
-[Flags]
-public enum Mask
+public enum Groups
 {
     Group0 = 1 << 0,
     Group1 = 1 << 1,
@@ -21,24 +20,24 @@ class Keywords
     public const string Group0Keyword = "_Group0";
     public const string Group1Keyword = "_Group1";
 
-    [ShaderFieldKeyword(Group0Keyword, Mask.Group0)] //Mark this member as a keyword
+    [ShaderFieldKeyword(Group0Keyword, Groups.Group0)] //Mark this member as a keyword
     public bool Group0;
     
-    [ShaderFieldEnumKeyword(Group0Keyword, Mask.Group0
-        , Group1Keyword, Mask.Group1)] //Mark as keywords enumeration
-    public Mask ModeSwitch;
+    [ShaderFieldEnumKeyword(Group0Keyword, Groups.Group0
+        , Group1Keyword, Groups.Group1)] //Mark as keywords enumeration
+    public Groups ModeSwitch;
 }
 
-[ShaderFieldGroup(Mask.Group0 | Mask.Group1)] //Mark this class is a collection of shader parameters
+[ShaderFieldGroup(Groups.Group0 | Groups.Group1)] //Mark this class is a collection of shader parameters
 class ShaderParameters
 {
     public const string FloatValueShaderName = "_FloatValue";
     public const string IntValueShaderName = "_IntValue";
     
-    [ShaderField(FloatValueShaderName, Mask.Group0)] //Mark as a shader parameter
+    [ShaderField(FloatValueShaderName, Groups.Group0)] //Mark as a shader parameter
     public float floatValue;
     
-    [ShaderField(IntValueShaderName, Mask.Group1)] //Mark as a shader parameter
+    [ShaderField(IntValueShaderName, Groups.Group1)] //Mark as a shader parameter
     public int intValue {get; set;}
 }
 
@@ -60,7 +59,7 @@ accessor.Copy(shaderOptions, material); //Format : void Copy(object source, Mate
 accessor.Copy(material, shaderOptions); //Format : void Copy(Material source, object dest)
 
 accessor.CopyWithoutKeywords(shaderOptions, material);
-accessor.Copy(shaderOptions, material, member => (member.Mask & Mask.Group0) != 0); //Only copy members marked as Group0
+accessor.Copy(shaderOptions, material, member => (member.Mask & Groups.Group0) != 0); //Only copy members marked as Group0
 accessor.SetGlobalValues(shaderOptions); // like Shader.SetGlobalXXXX()
 ```
 
