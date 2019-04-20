@@ -111,17 +111,8 @@ namespace JiongXiaGu.ShaderTools
                             var att = (ShaderFieldEnumKeywordAttribute)attribute;
                             if (typeof(Enum).IsAssignableFrom(fieldType))
                             {
-                                var flagsAtt = fieldType.GetCustomAttribute<FlagsAttribute>();
-                                if (flagsAtt == null)
-                                {
-                                    var item = new ShaderEnumKeyword(att.Mask, field, att.Keywords);
-                                    parameters.Add(item);
-                                }
-                                else
-                                {
-                                    var item = new ShaderEnumFlagsKeyword(att.Mask, field, att.Keywords);
-                                    parameters.Add(item);
-                                }
+                                var item = new ShaderEnumKeyword(att.Mask, field, att.Keywords);
+                                parameters.Add(item);
                             }
                         }
                         else if (attribute is ShaderFieldMarkAttribute)

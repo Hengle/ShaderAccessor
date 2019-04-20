@@ -1,20 +1,40 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.IO;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
 namespace JiongXiaGu.ShaderTools
 {
 
+    public interface ISerializedPropertyDrawer
+    {
+        SerializedProperty SerializedProperty { get; }
+        void OnGUI(int mask);
+        int Extract();
+    }
+
     public class SerializedPropertyDrawer
     {
         public IShaderFieldGroup Group { get; }
-        private List<Drawer> drawers;
-        public int Mask { get; private set; }
+        public SerializedProperty SerializedProperty { get; }
+        public List<ISerializedPropertyDrawer> Drawers { get; }
 
         public SerializedPropertyDrawer(IShaderFieldGroup group, SerializedProperty property)
         {
+            if (group == null)
+                throw new ArgumentNullException(nameof(group));
+            if (property == null)
+                throw new ArgumentNullException(nameof(property));
+
             Group = group;
-            drawers = new List<Drawer>(group.Children.Count);
+            SerializedProperty = property;
+            Drawers = new List<ISerializedPropertyDrawer>(group.Children.Count);
+            FindDrawers(Drawers, group, property);
+        }
+
+        public void FindDrawers(List<ISerializedPropertyDrawer> drawers, IShaderFieldGroup group, SerializedProperty property)
+        {
             foreach (var child in group.Children)
             {
                 if (child is ShaderField)
@@ -47,16 +67,6 @@ namespace JiongXiaGu.ShaderTools
                         drawers.Add(drawer);
                     }
                 }
-                else if (child is ShaderEnumFlagsKeyword)
-                {
-                    var field = (ShaderEnumFlagsKeyword)child;
-                    var target = property.FindPropertyRelative(field.ReflectiveField.Name);
-                    if (target != null)
-                    {
-                        var drawer = new EnumFlagsKeywordDrawer(target, field);
-                        drawers.Add(drawer);
-                    }
-                }
                 else if (child is ShaderFieldMark)
                 {
                     var field = (ShaderFieldMark)child;
@@ -77,47 +87,113 @@ namespace JiongXiaGu.ShaderTools
                         drawers.Add(drawer);
                     }
                 }
+                else if (child is ShaderFieldGroup)
+                {
+                    var field = (ShaderFieldGroup)child;
+                    var target = property.FindPropertyRelative(field.ReflectiveField.Name);
+                    if (target != null)
+                    {
+                        var drawer = new GroupDrawer(target, field);
+                        drawers.Add(drawer);
+                        FindDrawers(drawer.Drawers, field, target);
+                    }
+                }
+                else
+                {
+                    throw new NotImplementedException();
+                }
             }
         }
 
         public void OnGUI(int mask)
         {
-            foreach (var drawer in drawers)
+            SerializedProperty.isExpanded = EditorGUILayout.Foldout(SerializedProperty.isExpanded, SerializedProperty.displayName);
+
+            if (SerializedProperty.isExpanded)
             {
-                drawer.Draw(mask);
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    foreach (var drawer in Drawers)
+                    {
+                        drawer.OnGUI(mask);
+                    }
+                }
             }
         }
 
-        public void OnGUI(Rect position, int mask)
+        public int Collect()
         {
-            foreach (var drawer in drawers)
+            var mask = 0;
+            foreach (var drawer in Drawers)
             {
-                drawer.Draw(position, mask);
-                position.y += drawer.GetPropertyHeight(mask);
+                mask |= drawer.Extract();
             }
+            return mask;
         }
 
-        public float GetPropertyHeight(int mask)
+        public ISerializedPropertyDrawer Find(params string[] path)
         {
-            float height = 0;
-            foreach (var drawer in drawers)
+            var list = Drawers;
+            ISerializedPropertyDrawer drawer = null;
+
+            foreach (var name in path)
             {
-                height += drawer.GetPropertyHeight(mask);
+                var index = list.FindIndex(item => item.SerializedProperty.name == name);
+                if (index >= 0)
+                {
+                    var current = list[index];
+                    if (current is GroupDrawer)
+                    {
+                        list = ((GroupDrawer)current).Drawers;
+                        drawer = current;
+                        continue;
+                    }
+                }
             }
-            return height;
+
+            return drawer;
         }
 
-        public void Extract()
+        public bool ChangeDrawer(Func<ISerializedPropertyDrawer> getDrawer, params string[] path)
         {
-            Mask = 0;
+            if (getDrawer == null)
+                throw new ArgumentNullException(nameof(getDrawer));
 
-            foreach (var drawer in drawers)
+            var list = Drawers;
+
+            for (int i = 0; i < path.Length; i++)
             {
-                drawer.Extract(this);
+                var name = path[i];
+                var index = list.FindIndex(item => item.SerializedProperty.name == name);
+                if (index >= 0)
+                {
+                    if (i + 1 >= path.Length)
+                    {
+                        list[index] = getDrawer();
+                        return true;
+                    }
+
+                    var current = list[index];
+                    if (current is GroupDrawer)
+                    {
+                        list = ((GroupDrawer)current).Drawers;
+                        continue;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    return false;
+                }
             }
+
+            return false;
         }
 
-        public class Drawer
+        public class Drawer : ISerializedPropertyDrawer
         {
             public SerializedProperty SerializedProperty { get; }
 
@@ -126,23 +202,55 @@ namespace JiongXiaGu.ShaderTools
                 SerializedProperty = serializedProperty;
             }
 
-            public virtual float GetPropertyHeight(int mask)
+            public virtual void OnGUI(int mask)
             {
-                return EditorGUI.GetPropertyHeight(SerializedProperty);
+                EditorGUILayout.PropertyField(SerializedProperty, true);
             }
 
-            public virtual void Draw(Rect position, int mask)
+            public virtual int Extract()
             {
-                EditorGUI.PropertyField(position, SerializedProperty);
+                return 0;
+            }
+        }
+
+        public class GroupDrawer : Drawer
+        {
+            public ShaderFieldGroup Group { get; private set; }
+            public List<ISerializedPropertyDrawer> Drawers { get; private set; }
+
+            public GroupDrawer(SerializedProperty serializedProperty, ShaderFieldGroup group) : base(serializedProperty)
+            {
+                Group = group;
+                Drawers = new List<ISerializedPropertyDrawer>(group.Children.Count);
             }
 
-            public virtual void Draw(int mask)
+            public override void OnGUI(int mask)
             {
-                EditorGUILayout.PropertyField(SerializedProperty);
+                if ((mask & Group.Mask) != 0)
+                {
+                    SerializedProperty.isExpanded = EditorGUILayout.Foldout(SerializedProperty.isExpanded, SerializedProperty.displayName);
+
+                    if (SerializedProperty.isExpanded)
+                    {
+                        using (new EditorGUI.IndentLevelScope())
+                        {
+                            foreach (var drawer in Drawers)
+                            {
+                                drawer.OnGUI(mask);
+                            }
+                        }
+                    }
+                }
             }
 
-            public virtual void Extract(SerializedPropertyDrawer parent)
+            public override int Extract()
             {
+                int mask = 0;
+                foreach (var drawer in Drawers)
+                {
+                    mask |= drawer.Extract();
+                }
+                return mask;
             }
         }
 
@@ -155,80 +263,42 @@ namespace JiongXiaGu.ShaderTools
                 ShaderField = shaderField;
             }
 
-            public override float GetPropertyHeight(int mask)
+            public override void OnGUI(int mask)
             {
                 if ((mask & ShaderField.Mask) != 0)
                 {
-                    return base.GetPropertyHeight(mask);
-                }
-                else
-                {
-                    return 0;
-                }
-            }
-
-            public override void Draw(Rect position, int mask)
-            {
-                if ((mask & ShaderField.Mask) != 0)
-                {
-                    base.Draw(position, mask);
-                }
-            }
-
-            public override void Draw(int mask)
-            {
-                if ((mask & ShaderField.Mask) != 0)
-                {
-                    base.Draw(mask);
+                    base.OnGUI(mask);
                 }
             }
         }
 
-        public class KeywordDrawer : ShaderFieldDrawer
+        public class KeywordDrawer : Drawer
         {
             public ShaderKeyword ShaderKeyword { get; }
 
-            public KeywordDrawer(SerializedProperty serializedProperty, ShaderKeyword shaderKeyword) : base(serializedProperty, shaderKeyword)
+            public KeywordDrawer(SerializedProperty serializedProperty, ShaderKeyword shaderKeyword) : base(serializedProperty)
             {
                 ShaderKeyword = shaderKeyword;
             }
 
-            public override void Extract(SerializedPropertyDrawer parent)
+            public override int Extract()
             {
-                if (SerializedProperty.boolValue)
-                {
-                    parent.Mask |= ShaderKeyword.Mask;
-                }
+                return SerializedProperty.boolValue ? ShaderKeyword.Mask : 0;
             }
         }
 
-        public class EnumKeywordDrawer : ShaderFieldDrawer
+        public class EnumKeywordDrawer : Drawer
         {
-            public EnumKeywordDrawer(SerializedProperty serializedProperty, ShaderEnumKeyword field) : base(serializedProperty, field)
+            public ShaderEnumKeyword ShaderEnumKeyword { get; }
+
+            public EnumKeywordDrawer(SerializedProperty serializedProperty, ShaderEnumKeyword field) : base(serializedProperty)
             {
+                ShaderEnumKeyword = field;
             }
 
-            public override void Extract(SerializedPropertyDrawer parent)
+            public override int Extract()
             {
-                if (SerializedProperty.intValue >= 0)
-                {
-                    parent.Mask |= SerializedProperty.intValue;
-                }
-            }
-        }
-
-        public class EnumFlagsKeywordDrawer : ShaderFieldDrawer
-        {
-            public EnumFlagsKeywordDrawer(SerializedProperty serializedProperty, ShaderEnumFlagsKeyword field) : base(serializedProperty, field)
-            {
-            }
-
-            public override void Extract(SerializedPropertyDrawer parent)
-            {
-                if (SerializedProperty.intValue >= 0)
-                {
-                    parent.Mask |= SerializedProperty.intValue;
-                }
+                return ShaderEnumKeyword.Mask;
             }
         }
     }

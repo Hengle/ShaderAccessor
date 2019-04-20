@@ -9,7 +9,8 @@ namespace JiongXiaGu.ShaderTools
     public abstract class ShaderMultipleKeyword : ShaderFieldBase, IEnumerable<KeyValuePair<int, string>>
     {
         public object[] KeywordsAndMask { get; }
-        public string[] SortNames { get; }
+        public string[] EnumNames { get; }
+        public int EmptyKeywordIndex { get; }
 
         public string this[int index]
         {
@@ -26,10 +27,17 @@ namespace JiongXiaGu.ShaderTools
                 throw new ArgumentException("keywords count must even");
 
             KeywordsAndMask = keywords;
-            SortNames = new string[keywords.Length / 2];
+            EnumNames = new string[keywords.Length / 2];
+            EmptyKeywordIndex = -1;
             for (int i = 0; i < keywords.Length; i += 2)
             {
-                SortNames[i / 2] = ReflectiveField.FieldType.GetEnumName(GetMask(i));
+                string keyword = GetKeyword(i);
+                if (keyword == null)
+                {
+                    EmptyKeywordIndex = i;
+                }
+
+                EnumNames[i / 2] = ReflectiveField.FieldType.GetEnumName(GetMask(i));
             }
         }
 

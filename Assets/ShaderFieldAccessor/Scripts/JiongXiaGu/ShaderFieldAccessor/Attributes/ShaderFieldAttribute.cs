@@ -1,9 +1,6 @@
 ﻿namespace JiongXiaGu.ShaderTools
 {
 
-    /// <summary>
-    /// Mark as a shader member variable
-    /// </summary>
     public class ShaderFieldAttribute : ShaderFieldBaseAttribute
     {
         public string Name { get; set; }

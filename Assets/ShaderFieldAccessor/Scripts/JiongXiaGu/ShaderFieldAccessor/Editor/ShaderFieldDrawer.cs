@@ -2,281 +2,310 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using System.Linq;
 
 namespace JiongXiaGu.ShaderTools
 {
 
-    public class ShaderFieldDrawer
+    public interface IShaderFieldDrawer
     {
-        public IShaderFieldGroup Group { get; }
-        public List<IFieldDrawer> Drawers { get; }
-        public bool IsKeywordChanged { get; private set; }
-        public int Mask { get; private set; }
-        private MaterialEditor materialEditor;
-        private List<string> keywords;
-        private bool isDrawUI;
+        string Name { get; }
+        void CreateExpandItem(SignalPersistentSave signal);
+        void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties, IList<string> keywords, SignalPersistentSave signal, int mask);
+        int Collect(IReadOnlyList<string> keywords);
+    }
 
-        public ShaderFieldDrawer(IShaderFieldGroup group, MaterialProperty[] properties)
+    public class ShaderFieldDrawer : IShaderFieldDrawer
+    {
+        public string Name { get; set; }
+        public IShaderFieldGroup Group { get; }
+        public List<IShaderFieldDrawer> Drawers { get; }
+        public int ExpandedID { get; private set; }
+
+        public ShaderFieldDrawer(IShaderFieldGroup group, string displayName)
         {
             if (group == null)
                 throw new ArgumentNullException(nameof(group));
 
             Group = group;
-            Drawers = new List<IFieldDrawer>(group.Children.Count);
+            Name = displayName;
+            Drawers = new List<IShaderFieldDrawer>(group.Children.Count);
+            FindDrawers(Drawers, group);
+        }
 
-            foreach (var child in Group.Children)
+        public void FindDrawers(List<IShaderFieldDrawer> drawers, IShaderFieldGroup group)
+        {
+            foreach (var child in group.Children)
             {
                 if (child is ShaderField)
                 {
                     var field = (ShaderField)child;
-                    IFieldDrawer drawer;
-                    if (StandardFieldDrawer.TryCreate(field, properties, out drawer))
-                    {
-                        Drawers.Add(drawer);
-                    }
+                    drawers.Add(new FieldDrawer(field));
                 }
-                if (child is ShaderKeyword)
+                else if (child is ShaderKeyword)
                 {
                     var field = (ShaderKeyword)child;
-                    Drawers.Add(new ShaderKeywordDrawer(field));
+                    drawers.Add(new KeywordDrawer(field));
                 }
                 else if (child is ShaderEnumKeyword)
                 {
                     var field = (ShaderEnumKeyword)child;
-                    Drawers.Add(new ShaderEnumKeywordDrawer(field));
+                    drawers.Add(new EnumKeywordDrawer(field));
                 }
-                else if (child is ShaderEnumFlagsKeyword)
+                else if (child is ShaderFieldGroup)
                 {
-                    var field = (ShaderEnumFlagsKeyword)child;
-                    Drawers.Add(new ShaderEnumFlagsKeywordDrawer(field));
+                    var field = (ShaderFieldGroup)child;
+                    var drawer = new GroupDrawer(field);
+                    drawers.Add(drawer);
+                    FindDrawers(drawer.Drawers, field);
                 }
             }
         }
 
-        public void Draw(MaterialEditor materialEditor, List<string> keywords, int mask)
+        public void CreateExpandItem(SignalPersistentSave signal)
         {
-            this.materialEditor = materialEditor;
-            Mask = 0;
-            this.keywords = keywords;
-            IsKeywordChanged = false;
-            isDrawUI = true;
-
+            ExpandedID = signal.CreateItem(Name);
             foreach (var drawer in Drawers)
             {
-                drawer.Draw(this, mask);
+                drawer.CreateExpandItem(signal);
             }
         }
 
-        public void Draw(MaterialEditor materialEditor, int mask)
+        public void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties, IList<string> keywords, SignalPersistentSave signal, int mask)
         {
-            Draw(materialEditor, null, mask);
+            bool isExpanded = signal[ExpandedID] = EditorGUILayout.Foldout(signal[ExpandedID], Name);
+            if (isExpanded)
+            {
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    foreach (var drawer in Drawers)
+                    {
+                        drawer.OnGUI(materialEditor, properties, keywords, signal, mask);
+                    }
+                }
+            }
         }
 
-        public void Extract(MaterialEditor materialEditor, List<string> keywords, int mask)
+        public int Collect(IReadOnlyList<string> keywords)
         {
-            this.materialEditor = materialEditor;
-            Mask = 0;
-            this.keywords = keywords;
-            IsKeywordChanged = false;
-            isDrawUI = false;
-
+            int mask = 0;
             foreach (var drawer in Drawers)
             {
-                drawer.Draw(this, mask);
+                mask |= drawer.Collect(keywords);
             }
+            return mask;
         }
 
-
-        public interface IFieldDrawer
+        public bool ChangeDrawer(Func<IShaderFieldDrawer, IShaderFieldDrawer> getDrawer, params string[] path)
         {
-            void Draw(ShaderFieldDrawer parent, int mask);
-        }
+            if (getDrawer == null)
+                throw new ArgumentNullException(nameof(getDrawer));
 
-        private class StandardFieldDrawer : IFieldDrawer
-        {
-            public ShaderFieldBase Field { get; private set; }
-            public MaterialProperty MaterialProperty { get; private set; }
+            List<IShaderFieldDrawer> list = Drawers;
 
-            public StandardFieldDrawer(ShaderFieldBase field, MaterialProperty property)
+            for (int i = 0; i < path.Length; i++)
             {
-                Field = field;
-                MaterialProperty = property;
-            }
-
-            public static bool TryCreate(ShaderField field, MaterialProperty[] properties, out IFieldDrawer drawer)
-            {
-                var materialProperty = ShaderDrawerHelper.PublicFindProperty(field.ShaderFieldName, properties);
-                if (materialProperty != null)
+                var name = path[i];
+                var index = list.FindIndex(item => item.Name == name);
+                if (index >= 0)
                 {
-                    drawer = new StandardFieldDrawer(field, materialProperty);
-                    return true;
+                    var current = list[index];
+                    if (i + 1 >= path.Length)
+                    {
+                        list[index] = getDrawer(current);
+                        return true;
+                    }
+
+                    if (current is GroupDrawer)
+                    {
+                        list = ((GroupDrawer)current).Drawers;
+                        continue;
+                    }
+                    else
+                    {
+                        return false;
+                    }
                 }
                 else
                 {
-                    drawer = default(IFieldDrawer);
                     return false;
                 }
             }
 
-            public void Draw(ShaderFieldDrawer parent, int mask)
+            return false;
+        }
+
+        public class GroupDrawer : IShaderFieldDrawer
+        {
+            public ShaderFieldGroup Group { get; private set; }
+            public List<IShaderFieldDrawer> Drawers { get; private set; }
+            public int ExpandedID { get; private set; }
+            public string Name => Group.ReflectiveField.Name;
+
+            public GroupDrawer(ShaderFieldGroup group)
+            {
+                Group = group;
+                Drawers = new List<IShaderFieldDrawer>(group.Children.Count);
+            }
+
+            public int Collect(IReadOnlyList<string> keywords)
+            {
+                int mask = 0;
+                foreach (var drawer in Drawers)
+                {
+                    mask |= drawer.Collect(keywords);
+                }
+                return mask;
+            }
+
+            public void CreateExpandItem(SignalPersistentSave signal)
+            {
+                ExpandedID = signal.CreateItem(Group.ReflectiveField.Name);
+                foreach (var drawer in Drawers)
+                {
+                    drawer.CreateExpandItem(signal);
+                }
+            }
+
+            public void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties, IList<string> keywords, SignalPersistentSave signal, int mask)
+            {
+                if ((mask & Group.Mask) == 0)
+                    return;
+
+                bool isExpanded = signal[ExpandedID] = EditorGUILayout.Foldout(signal[ExpandedID], Group.ReflectiveField.Name);
+                if (isExpanded)
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        foreach (var drawer in Drawers)
+                        {
+                            drawer.OnGUI(materialEditor, properties, keywords, signal, mask);
+                        }
+                    }
+                }
+            }
+        }
+
+        public class FieldDrawer : IShaderFieldDrawer
+        {
+            public ShaderField Field { get; private set; }
+            public string Name => Field.ReflectiveField.Name;
+
+            public FieldDrawer(ShaderField field)
+            {
+                Field = field;
+            }
+
+            public int Collect(IReadOnlyList<string> keywords)
+            {
+                return 0;
+            }
+
+            public void CreateExpandItem(SignalPersistentSave signal)
+            {
+                return;
+            }
+
+            public void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties, IList<string> keywords, SignalPersistentSave signal, int mask)
             {
                 if ((mask & Field.Mask) == 0)
                     return;
 
-                if (parent.isDrawUI)
+                var materialProperty = ShaderDrawerHelper.PublicFindProperty(Field.ShaderFieldName, properties);
+                string displayName = Field.ReflectiveField.Name;
+                materialEditor.ShaderProperty(materialProperty, displayName);
+            }
+        }
+
+        public class KeywordDrawer : IShaderFieldDrawer
+        {
+            public ShaderKeyword ShaderKeyword { get; private set; }
+            public string Name => ShaderKeyword.ReflectiveField.Name;
+
+            public KeywordDrawer(ShaderKeyword shaderKeyword)
+            {
+                ShaderKeyword = shaderKeyword;
+            }
+
+            public int Collect(IReadOnlyList<string> keywords)
+            {
+                return keywords.Contains(ShaderKeyword.Keyword) ? ShaderKeyword.Mask : 0;
+            }
+
+            public void CreateExpandItem(SignalPersistentSave signal)
+            {
+                return;
+            }
+
+            public void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties, IList<string> keywords, SignalPersistentSave signal, int mask)
+            {
+                var targetMat = materialEditor.target as Material;
+                bool isEnabled = targetMat.IsKeywordEnabled(ShaderKeyword.Keyword);
+
+                bool newValue = EditorGUILayout.Toggle(ShaderKeyword.ReflectiveField.Name, isEnabled);
+                if (newValue)
                 {
-                    string displayName = Field.ReflectiveField.Name;
-                    parent.materialEditor.DefaultShaderProperty(MaterialProperty, displayName);
+                    keywords.Add(ShaderKeyword.Keyword);
                 }
             }
         }
 
-        private class ShaderKeywordDrawer : IFieldDrawer
+        public class EnumKeywordDrawer : IShaderFieldDrawer
         {
-            public ShaderKeyword Keyword { get; }
+            public ShaderEnumKeyword EnumKeyword { get; }
+            public string Name => EnumKeyword.ReflectiveField.Name;
 
-            public ShaderKeywordDrawer(ShaderKeyword keyword)
+            public EnumKeywordDrawer(ShaderEnumKeyword keyword)
             {
-                Keyword = keyword;
+                EnumKeyword = keyword;
             }
 
-            public void Draw(ShaderFieldDrawer parent, int mask)
+            public int Collect(IReadOnlyList<string> keywords)
             {
-                if ((mask & Keyword.Mask) == 0)
-                    return;
-
-                Material targetMat = (Material)parent.materialEditor.target;
-                string keyword = Keyword.Keyword;
-                string displayName = Keyword.ReflectiveField.Name;
-
-                bool isEnabled = targetMat.IsKeywordEnabled(keyword);
-
-                if (parent.isDrawUI)
+                foreach (var item in EnumKeyword)
                 {
-                    bool newValue = EditorGUILayout.Toggle(displayName, isEnabled);
-                    parent.IsKeywordChanged |= isEnabled != newValue;
-                    isEnabled = newValue;
+                    var keyword = item.Value;
+                    if (keywords.Contains(keyword))
+                    {
+                        return item.Key;
+                    }
                 }
-
-                if (isEnabled)
-                {
-                    parent.keywords?.Add(keyword);
-                    parent.Mask |= Keyword.Mask;
-                }
-            }
-        }
-
-        private class ShaderEnumKeywordDrawer : IFieldDrawer
-        {
-            public ShaderEnumKeyword Keyword { get; }
-
-            public ShaderEnumKeywordDrawer(ShaderEnumKeyword keyword)
-            {
-                Keyword = keyword;
+                return 0;
             }
 
-            public void Draw(ShaderFieldDrawer parent, int mask)
+            public void CreateExpandItem(SignalPersistentSave signal)
             {
-                if (parent.keywords == null)
-                    return;
-                if ((mask & Keyword.Mask) == 0)
-                    return;
+                return;
+            }
 
-                var targetMat = (Material)parent.materialEditor.target;
+            public void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties, IList<string> keywords, SignalPersistentSave signal, int mask)
+            {
+                int newSelecteIndex;
+                string displayName = EnumKeyword.ReflectiveField.Name;
+                var targetMat = materialEditor.target as Material;
+
+                int selecteIndex = 0;
                 string keyword = null;
-                int selecteIndex = -1;
-                int emptyIndex = -1;
 
-                for (int i = 0; i < Keyword.KeywordsAndMask.Length; i += 2)
+                foreach (var item in EnumKeyword)
                 {
-                    keyword = Keyword.GetKeyword(i);
-                    if (keyword == null)
-                    {
-                        emptyIndex = i / 2;
-                    }
-                    else if (targetMat.IsKeywordEnabled(keyword))
-                    {
-                        selecteIndex = i / 2;
-                        break;
-                    }
-                }
-
-                if (selecteIndex < 0 && emptyIndex >= 0)
-                {
-                    selecteIndex = emptyIndex;
-                }
-
-                if (parent.isDrawUI)
-                {
-                    string displayName = Keyword.ReflectiveField.Name;
-                    int newSelecteIndex = EditorGUILayout.Popup(displayName, selecteIndex, Keyword.SortNames);
-                    parent.IsKeywordChanged |= selecteIndex != newSelecteIndex;
-                    selecteIndex = newSelecteIndex;
-                }
-
-                int index = selecteIndex * 2;
-                keyword = Keyword.GetKeyword(index);
-
-                if (keyword != null)
-                {
-                    parent.keywords?.Add(keyword);
-                    int itemMask = Keyword.GetMask(index);
-                    parent.Mask |= itemMask;
-                }
-            }
-        }
-
-        private class ShaderEnumFlagsKeywordDrawer : IFieldDrawer
-        {
-            public ShaderEnumFlagsKeyword Keyword { get; }
-
-            public ShaderEnumFlagsKeywordDrawer(ShaderEnumFlagsKeyword keyword)
-            {
-                Keyword = keyword;
-            }
-
-            public void Draw(ShaderFieldDrawer parent, int mask)
-            {
-                if (parent.keywords == null)
-                    return;
-                if ((mask & Keyword.Mask) == 0)
-                    return;
-
-                var targetMat = (Material)parent.materialEditor.target;
-                int selecteMask = 0;
-
-                for (int i = 0; i < Keyword.KeywordsAndMask.Length; i += 2)
-                {
-                    string keyword = Keyword.GetKeyword(i);
+                    keyword = item.Value;
                     if (keyword != null && targetMat.IsKeywordEnabled(keyword))
                     {
-                        int currentMask = 1 << i / 2;
-                        selecteMask |= currentMask;
+                        break;
                     }
+                    selecteIndex++;
                 }
 
-                if (parent.isDrawUI)
+                if (selecteIndex >= EnumKeyword.EnumNames.Length)
                 {
-                    string displayName = Keyword.ReflectiveField.Name;
-                    int newSelecteMask = EditorGUILayout.MaskField(displayName, selecteMask, Keyword.SortNames);
-                    parent.IsKeywordChanged |= selecteMask != newSelecteMask;
-                    selecteMask = newSelecteMask;
+                    selecteIndex = EnumKeyword.EmptyKeywordIndex;
                 }
 
-                for (int i = 0; i < Keyword.KeywordsAndMask.Length; i += 2)
-                {
-                    int currentMask = 1 << i / 2;
-                    if ((selecteMask & currentMask) != 0)
-                    {
-                        string keyword = Keyword.GetKeyword(i);
-                        int itemMask = Keyword.GetMask(i);
-                        if (keyword != null)
-                        {
-                            parent.keywords.Add(keyword);
-                            parent.Mask |= itemMask;
-                        }
-                    }
-                }
+                newSelecteIndex = EditorGUILayout.Popup(displayName, selecteIndex, EnumKeyword.EnumNames);
+                keyword = EnumKeyword.GetKeyword(newSelecteIndex * 2);
+                if (keyword != null)
+                    keywords.Add(keyword);
             }
         }
     }

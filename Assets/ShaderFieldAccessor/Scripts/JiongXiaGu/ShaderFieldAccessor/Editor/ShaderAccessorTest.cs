@@ -136,7 +136,6 @@ namespace JiongXiaGu.ShaderTools
                 {
                     Group0 = true,
                     ModeSwitch = ModeSwitch.EnableGroup1,
-                    ModeFlag = ModeFlag.Property,
                 };
                 var target = Mask.Group0 | Mask.Group1 | Mask.Property;
 
@@ -166,13 +165,6 @@ namespace JiongXiaGu.ShaderTools
             EnableGroup2 = Mask.Group2,
         }
 
-        [Flags]
-        public enum ModeFlag
-        {
-            Field = Mask.Field,
-            Property = Mask.Property,
-        }
-
         [Serializable]
         [ShaderFieldGroup]
         public class Mode
@@ -190,15 +182,10 @@ namespace JiongXiaGu.ShaderTools
                 , Group2Keyword, ModeSwitch.EnableGroup2)]
             public ModeSwitch ModeSwitch;
 
-            [ShaderFieldEnumKeyword(FieldKeyword, ModeFlag.Field
-                , PropertyKeyword, ModeFlag.Property)]
-            public ModeFlag ModeFlag;
-
             public static Mode CloseAll => new Mode()
             {
                 Group0 = false,
                 ModeSwitch = ModeSwitch.None,
-                ModeFlag = 0,
             };
 
             public void AreEqual(Mode actual)
@@ -206,7 +193,6 @@ namespace JiongXiaGu.ShaderTools
                 Assert.NotNull(actual);
                 Assert.AreEqual(Group0, actual.Group0);
                 Assert.AreEqual(ModeSwitch, actual.ModeSwitch);
-                Assert.AreEqual(ModeFlag, actual.ModeFlag);
             }
 
             public void AreNotEqual(Mode actual)
@@ -214,7 +200,6 @@ namespace JiongXiaGu.ShaderTools
                 Assert.NotNull(actual);
                 Assert.AreNotEqual(Group0, actual.Group0);
                 Assert.AreNotEqual(ModeSwitch, actual.ModeSwitch);
-                Assert.AreNotEqual(ModeFlag, actual.ModeFlag);
             }
         }
 
@@ -239,9 +224,6 @@ namespace JiongXiaGu.ShaderTools
 
             public const string Vector4ValueName = "_Vertor4Value";
             [ShaderField(Vector4ValueName, Mask.Group1)] public Vector4 Vector4Value;
-
-            public const string EnumValueName = "_EnumValue";
-            [ShaderField(EnumValueName, Mask.Group1)] public ModeFlag EnumValue;
 
             public const string TextureValueName = "_TextureValue";
             [ShaderField(TextureValueName, Mask.Group2)] public Texture TextureValue;
@@ -350,7 +332,6 @@ namespace JiongXiaGu.ShaderTools
                     {
                         Group0 = true,
                         ModeSwitch = ModeSwitch.EnableGroup1,
-                        ModeFlag = ModeFlag.Property | ModeFlag.Field,
                     },
                     Values0 = new Values0()
                     {
@@ -360,7 +341,6 @@ namespace JiongXiaGu.ShaderTools
                         Vector2Value = new Vector2(1.55f, 2.66f),
                         Vector3Value = new Vector3(684.55f, 4206f),
                         Vector4Value = new Vector4(16.25f, 19.65f),
-                        EnumValue = ModeFlag.Property,
                         TextureValue = CreateTempTexture(),
                         TextureScale = new Vector2(2f, 5f),
                         TextureOffset = new Vector2(35, 25f),
