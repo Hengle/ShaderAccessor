@@ -1,11 +1,10 @@
 # ShaderAccessor
-Define the structure, assign values to shader parameters using C# reflection,work at unity
 
-For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments or UI are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Performance is not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
+For many variants of the shader, or will use C# to change the shader parameters at runtime. If the assignments or UI are all hand-coded, it is really inhuman. So I wrote this tool, used C# reflection for shader parameter assignment. Because reflection is used, performance is not as good as hand-coded, but it can avoid a lot of troubles and mistakes.
 
 The tool supports all shader parameter type assignment and lerp, supports keyword (enum or boolean) switches, and provides custom types that can be used to resolve frame animation assignment, more see "ScriptableFrameAnimation.cs".
 
-#Examples,more see "ShaderAccessorTest.cs"
+## Examples,more see "ShaderAccessorTest.cs"
 
 First define some types and add attributes
 ```C#
@@ -31,7 +30,7 @@ class Keywords
 }
 
 [ShaderFieldGroup(Mask.Group0 | Mask.Group1)] //Mark this class is a collection of shader parameters
-class ShaderOptions
+class ShaderParameters
 {
     public const string FloatValueShaderName = "_FloatValue";
     public const string IntValueShaderName = "_IntValue";
@@ -40,7 +39,13 @@ class ShaderOptions
     public float floatValue;
     
     [ShaderField(IntValueShaderName, Mask.Group1)] //Mark as a shader parameter
-    public int intValue;
+    public int intValue {get; set;}
+}
+
+class ShaderOptions
+{
+    public Keywords Keywords;
+    public ShaderParameters Parameters;
 }
 ```
 
@@ -54,7 +59,9 @@ ShaderOptions shaderOptions = ShaderOptions.CreateEmpty();
 accessor.Copy(shaderOptions, material); //Format : void Copy(object source, Material dest)
 accessor.Copy(material, shaderOptions); //Format : void Copy(Material source, object dest)
 
+accessor.CopyWithoutKeywords(shaderOptions, material);
 accessor.Copy(shaderOptions, material, member => (member.Mask & Mask.Group0) != 0); //Only copy members marked as Group0
+accessor.SetGlobalValues(shaderOptions); // like Shader.SetGlobalXXXX()
 ```
 
 Get the shader parameter collection, you can easily implement the automatic UI.<br>
